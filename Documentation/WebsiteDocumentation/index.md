@@ -2,12 +2,12 @@
 layout: default
 title: Home
 nav_order: 1
-description: "Diagnostics tools for the WaveVortexModel"
+description: "A better NetCDF interface for Matlab"
 permalink: /
 ---
 
-WaveVortexModel Diagnostics
+A better NetCDF interface for Matlab
 ==============
 
-This is designed to work with output from the WaveVortexModel.
+This is a better interface to NetCDF files from Matlab.
 

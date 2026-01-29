@@ -9,27 +9,28 @@ mathjax: true
 
 #  NetCDFFile
 
-initialize an from existing or create new file
+Open an existing NetCDF file or create a new file at path.
 
 
 ---
 
 ## Declaration
 ```matlab
- ncfile = NetCDFFile(path,options)
+ self = NetCDFFile(path,options)
 ```
 ## Parameters
-+ `path`  path to write file
-+ `shouldOverwriteExisting`  (optional) boolean indicating whether or not to overwrite an existing file at the path. Default 0.
++ `path`  (string) file path
++ `options.shouldOverwriteExisting`  logical scalar — delete existing file at path before creating a new dataset
++ `options.shouldUseClassicNetCDF`  logical scalar — create classic (non-NetCDF4) file format
++ `options.shouldReadOnly`  logical scalar — open existing file in read-only mode
+
+## Returns
++ `self`  NetCDFFile instance
 
 ## Discussion
 
-  Calling,
-    ncfile = NetCDFFile(path)
-  will load an existing file (if one exists) or create a new
-  file (if none exists).
+  If a file exists at path, it will be opened for reading
+  or read/write (depending on options). If no file exists, the
+  a new file will be created.
  
-    ncfile = NetCDFFile(path,shouldOverwriteExisting=1)
-  will delete any existing file and create a new file.
- 
-          - Returns: a new NetCDFFile instance
+              

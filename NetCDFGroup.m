@@ -1,6 +1,16 @@
 classdef NetCDFGroup < handle
-    % A group of NetCDF variables and dimensions
+    % NetCDFGroup A group of NetCDF variables, dimensions, attributes, and child groups.
     %
+    % `NetCDFGroup` represents a single NetCDF group (including the root group) and
+    % provides a uniform interface for:
+    %
+    % - Creating and registering coordinate dimensions (and their coordinate variables)
+    % - Creating, registering, and reading variables (real and complex)
+    % - Creating and traversing a group hierarchy
+    % - Managing group-level (global) attributes
+    %
+    % Typical usage is through `NetCDFFile`, which constructs the root group and then
+    % exposes methods that delegate to this class.
     %
     % - Topic: Initializing
     % - Topic: Accessing group properties
@@ -10,6 +20,7 @@ classdef NetCDFGroup < handle
     % - Topic: Working with global attributes
     %
     % - Declaration: classdef NetCDFGroup < handle
+
     properties (WeakHandle)
         % parent group (may be nil)
         % - Topic: Accessing group properties
@@ -87,13 +98,14 @@ classdef NetCDFGroup < handle
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         function self = NetCDFGroup(options)
-            % NetCDFGroup
+            % NetCDFGroup Create and manage a NetCDF group.
             %
             % - Topic: Initializing
-            % - Declaration: ncfile = NetCDFFile(path,options)
-            % - Parameter path: path to write file
-            % - Parameter shouldOverwriteExisting: (optional) boolean indicating whether or not to overwrite an existing file at the path. Default 0.
-            % - Returns: a new NetCDFFile instance
+            % - Declaration: grp = NetCDFGroup(options)
+            % - Parameter options.name: (char) Group name.
+            % - Parameter options.id: (double) NetCDF group ID to load from an existing file.
+            % - Parameter options.parentGroup: (NetCDFGroup) Parent group. Use [] for the root group.
+            % - Returns grp: (NetCDFGroup) New group instance.
             arguments
                 options.name char {mustBeNonempty}
                 options.id double {mustBeNonempty}
@@ -136,14 +148,18 @@ classdef NetCDFGroup < handle
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         function dim = dimensionWithName(self,name)  
-            % retrieve a NetCDFDimension object by name
+            % dimensionWithName Retrieve a dimension by name.
             %
             % Usage
             % ```matlab
             % xDim = ncfile.dimensionWithName('x');
             % ```
             %
+
             % - Topic: Working with dimensions
+            % - Declaration: dim = dimensionWithName(name)
+            % - Parameter name: (char|string) Dimension name.
+            % - Returns dim: (NetCDFDimension) Matching dimension.
             arguments (Input)
                 self NetCDFGroup {mustBeNonempty}
             end
@@ -183,19 +199,21 @@ classdef NetCDFGroup < handle
         end
 
         function dims = dimensionWithID(self,dimids)
-            % return the dimension IDs given the dimension names
+            % dimensionWithID Retrieve dimensions by NetCDF dimension ID.
             %
             % - Topic: Working with dimensions
+            % - Declaration: dims = dimensionWithID(dimids)
+            % - Parameter dimids: (double) NetCDF dimension IDs.
+            % - Returns dims: (NetCDFDimension) Matching dimensions (in the same order as dimids).
+            arguments
+                self (1,1) NetCDFGroup {mustBeNonempty}
+                dimids (1,:) double {mustBeNonempty}
+            end
             dims = self.dimensionIDMap(dimids);
         end
 
         function [dim,var] = addDimension(self,name,value,options)
-            % add a new dimension to the group
-            %
-            % This function adds both a dimension and an associated
-            % coordinate variable.
-            %
-            % You may initialize directly with data, e.g.,
+            % addDimension Add a new coordinate dimension and associated coordinate variable.
             %
             % ```matlab
             % ncfile.addDimension('x',0:9);
@@ -216,12 +234,12 @@ classdef NetCDFGroup < handle
             %
             % - Topic: Working with dimensions
             % - Declaration: [dim,var] = addDimension(name,value,options)
-            % - Parameter name: name of the dimension (a string)
-            % - Parameter value: (optional) value of the coordinate
-            % - Parameter type: (optional) data type, e.g., 'double'
-            % - Parameter length: (optional) length of the data, Inf, indicates an unlimited dimension
-            % - Parameter attributes: (optional) `containers.Map`
-            % - Returns variable: a NetCDFDimension and a NetCDFVariable object
+            % - Parameter name: (char|string) Dimension name.
+            % - Parameter value: (:) Coordinate values. Omit or pass [] to create an empty coordinate variable.
+            % - Parameter options.isUnlimited: (logical) Mark the dimension as unlimited. Default false.
+            % - Parameter options.shouldWriteImmediately: (logical) Write metadata and data to file immediately when possible. Default true.
+            % - Returns dim: (NetCDFDimension) Created dimension.
+            % - Returns var: (NetCDFVariable) Created coordinate variable.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 name {mustBeText}
@@ -256,22 +274,12 @@ classdef NetCDFGroup < handle
         end
 
         function dimPath = dimensionPathWithName(self,dimensionName)
-            % returns all variables paths with a given name from this group and any subgroups.
+            % dimensionPathWithName Return the full group-qualified path of a dimension name.
             %
-            % Pass a variable name and zero or more paths will be
-            % returned.
-            %
-            % ```matlab
-            % var = ncfile.allVariablesWithName('x');
-            % ```
-            %
-            % var will be either NetCDFRealVariable or
-            % NetCDFComplexVariable.
-            %
-            % - Topic: Working with variables
-            % - Declaration: varargout = allVariablesWithName(variableNames)
-            % - Parameter variableNames: variable name
-            % - Returns varargout: (repeating) variable objects
+            % - Topic: Working with dimensions
+            % - Declaration: dimPath = dimensionPathWithName(dimensionName)
+            % - Parameter dimensionName: (char|string) Dimension name.
+            % - Returns dimPath: (string) Full path to the dimension within the file/group hierarchy.
             arguments
                 self NetCDFGroup {mustBeNonempty}
                 dimensionName char
@@ -286,19 +294,16 @@ classdef NetCDFGroup < handle
         end
 
         function bool = hasDimensionWithName(self,dimName)
-            % determine whether a dimension exists in this group or any of
-            % its subgroups.
-            %
-            % Pass an array of dimension names.
+            % hasDimensionWithName Determine whether a dimension exists in this group.
             %
             % ```matlab
             % bool = ncfile.hasDimensionWithName('x');
             % ```
             %
-            % - Topic: Working with variables
-            % - Declaration: bool = hasDimensionWithName(self,dimName)
-            % - Parameter dimName: dimension name
-            % - Returns varargout: (repeating) dimension name
+            % - Topic: Working with dimensions
+            % - Declaration: tf = hasDimensionWithName(dimName)
+            % - Parameter dimName: (char|string) Dimension name.
+            % - Returns tf: (logical) True if the dimension exists.
             arguments
                 self NetCDFGroup {mustBeNonempty}
             end
@@ -320,10 +325,7 @@ classdef NetCDFGroup < handle
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         function var = addVariable(self,name,dimNames,value,options)
-            % add a new (real or complex) variable to the file
-            %
-            % Immediately initializes and writes the given variable data to
-            % file, e.g.,
+            % addVariable Add a real or complex variable to the group.
             %
             % ```matlab
             % ncfile.addVariable('fluid-tracer', {'x','y','t'}, myVariableData);
@@ -335,14 +337,13 @@ classdef NetCDFGroup < handle
             % ```
             %
             % - Topic: Working with variables
-            % - Declaration: variable = addVariable(name,dimNames,value,options)
-            % - Parameter name: name of the variable (a string)
-            % - Parameter dimNames: cell array containing the dimension names
-            % - Parameter data: (optional) variable data
-            % - Parameter type: (optional) data type, e.g., 'double'
-            % - Parameter isComplex: (optional) boolean
-            % - Parameter attributes: (optional) `containers.Map`
-            % - Returns variable: a NetCDFVariable object
+            % - Declaration: var = addVariable(name,dimNames,value,options)
+            % - Parameter name: (char|string) Variable name.
+            % - Parameter dimNames: (cell|string) Dimension names (coordinate dimensions) defining the variable.
+            % - Parameter value: (:) Variable data. Omit or pass [] to create metadata without writing data.
+            % - Parameter options.isComplex: (logical) Create a complex variable wrapper. Default false.
+            % - Parameter options.shouldWriteImmediately: (logical) Write metadata and data to file immediately when possible. Default true.
+            % - Returns var: (NetCDFVariable) Created variable object.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 name {mustBeText}
@@ -384,10 +385,7 @@ classdef NetCDFGroup < handle
         end
 
         function var = addFunctionHandle(self,name,value,options)
-            % add a function_handle type to the file
-            %
-            % Immediately initializes and writes the given variable data to
-            % file, e.g.,
+            % addFunctionHandle Add a lazily-evaluated variable backed by a function handle.
             %
             % ```matlab
             % m = 1; b = 2;
@@ -396,11 +394,12 @@ classdef NetCDFGroup < handle
             % ```
             %
             % - Topic: Working with variables
-            % - Declaration: variable = addFunctionHandle(name,dimNames,value,options)
-            % - Parameter name: name of the variable (a string)
-            % - Parameter value: function_handle
-            % - Parameter attributes: (optional) `containers.Map`
-            % - Returns variable: a NetCDFVariable object
+            % - Declaration: var = addFunctionHandle(name,value,options)
+            % - Parameter name: (char|string) Variable name.
+            % - Parameter value: (function_handle) Function handle used to generate variable data on demand.
+            % - Parameter options.dimNames: (cell|string) Dimension names defining the variable.
+            % - Parameter options.isComplex: (logical) Create a complex variable wrapper. Default false.
+            % - Returns var: (NetCDFVariable) Created variable object.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 name {mustBeText}
@@ -433,10 +432,7 @@ classdef NetCDFGroup < handle
 
 
         function varargout = readVariables(self,variableNames)
-            % read variables from file
-            %
-            % Pass a list of variables to read and the data will be
-            % returned in the same order.
+            % readVariables Read one or more variables from file.
             %
             % ```matlab
             % [x,y] = ncfile.readVariables('x','y');
@@ -444,8 +440,8 @@ classdef NetCDFGroup < handle
             %
             % - Topic: Working with variables
             % - Declaration: varargout = readVariables(variableNames)
-            % - Parameter variableNames: (repeating) list of variable names
-            % - Returns varargout: (repeating) list of variable data
+            % - Parameter variableNames: (cell|string) Variable names or paths to read.
+            % - Returns varargout: (cell) Variable data returned in the same order as variableNames.
             arguments
                 self NetCDFGroup {mustBeNonempty}
             end
@@ -459,21 +455,18 @@ classdef NetCDFGroup < handle
         end
 
         function varargout = readVariablesAtIndexAlongDimension(self,dimName,index,variableNames)
-            % read variables from file at a particular index (e.g., time)
-            %
-            % Pass a list of variables to read and the data will be
-            % returned in the same order.
+            % readVariablesAtIndexAlongDimension Read variables at a single index along a named dimension.
             %
             % ```matlab
             % [u,v] = ncfile.readVariablesAtIndexAlongDimension('t',100,'u','v');
             % ```
             %
             % - Topic: Working with variables
-            % - Declaration: varargout = readVariables(variableNames)
-            % - Parameter dimName: name of the dimension, character string
-            % - Parameter index: index at which to read the data, positive integer
-            % - Parameter variableNames: (repeating) list of variable names
-            % - Returns varargout: (repeating) list of variable data
+            % - Declaration: varargout = readVariablesAtIndexAlongDimension(dimName,index,variableNames)
+            % - Parameter dimName: (char|string) Dimension name to index.
+            % - Parameter index: (double) 1-based index along dimName.
+            % - Parameter variableNames: (cell|string) Variable names or paths to read.
+            % - Returns varargout: (cell) Variable data slices returned in the same order as variableNames.
             arguments
                 self NetCDFGroup {mustBeNonempty}
                 dimName char {mustBeNonempty}
@@ -489,10 +482,7 @@ classdef NetCDFGroup < handle
         end
 
         function varargout = variableWithName(self,variableName)
-            % return a variable with a given name from this group
-            %
-            % Pass a variable name and the variable object will be
-            % returned.
+            % variableWithName Retrieve a variable by name or path.
             %
             % ```matlab
             % var = ncfile.variableWithName('x');
@@ -502,9 +492,9 @@ classdef NetCDFGroup < handle
             % NetCDFComplexVariable.
             %
             % - Topic: Working with variables
-            % - Declaration: varargout = variableWithName(variableNames)
-            % - Parameter variableNames: variable name
-            % - Returns varargout: (repeating) variable objects
+            % - Declaration: var = variableWithName(,variableName)
+            % - Parameter variableName: (char|string) Variable name or group-qualified path.
+            % - Returns var: (NetCDFVariable) Matching variable object.
             arguments
                 self NetCDFGroup {mustBeNonempty}
             end
@@ -545,22 +535,18 @@ classdef NetCDFGroup < handle
         end
 
         function varPaths = variablePathsWithName(self,variableName)
-            % returns all variables paths with a given name from this group and any subgroups.
-            %
-            % Pass a variable name and zero or more paths will be
-            % returned.
+            % variablePathsWithName Return all group-qualified paths matching a variable name.
             %
             % ```matlab
-            % var = ncfile.allVariablesWithName('x');
+            % varPaths = ncfile.variablePathsWithName('x');
             % ```
             %
-            % var will be either NetCDFRealVariable or
-            % NetCDFComplexVariable.
+            % 
             %
             % - Topic: Working with variables
-            % - Declaration: varargout = allVariablesWithName(variableNames)
-            % - Parameter variableNames: variable name
-            % - Returns varargout: (repeating) variable objects
+            % - Declaration: varPaths = variablePathsWithName(grp,variableName)
+            % - Parameter variableName: (char|string) Variable name.
+            % - Returns varPaths: (string) Matching variable paths.
             arguments
                 self NetCDFGroup {mustBeNonempty}
                 variableName char
@@ -577,9 +563,7 @@ classdef NetCDFGroup < handle
         end
 
         function bool = hasVariableWithName(self,variablePath)
-            % whether a variable name or path exists in this group
-            %
-            % Pass a variable name or variable path.
+            % hasVariableWithName Determine whether a variable exists in this group.
             %
             % ```matlab
             % bool = ncfile.hasVariableWithName('t');
@@ -594,10 +578,11 @@ classdef NetCDFGroup < handle
             % 
             % will return true only if exactly that variable path exists.
             %
+
             % - Topic: Working with variables
-            % - Declaration: bool = hasVariableWithName(variablePath)
-            % - Parameter variablePath: array of variable name or variable paths
-            % - Returns bool: logical array of the same size as variablePath
+            % - Declaration: tf = hasVariableWithName(grp,variablePath)
+            % - Parameter variablePath: (char|string) Variable name or group-qualified path.
+            % - Returns tf: (logical) True if the variable exists.
             arguments
                 self NetCDFGroup {mustBeNonempty}
             end
@@ -624,6 +609,12 @@ classdef NetCDFGroup < handle
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         function bool = hasGroupWithName(self,groupName)
+            % hasGroupWithName Determine whether a child group exists in this group.
+            %
+            % - Topic: Working with groups
+            % - Declaration: tf = hasGroupWithName(grp,groupName)
+            % - Parameter groupName: (char|string) Child group name.
+            % - Returns tf: (logical) True if the group exists.
             arguments
                 self NetCDFGroup {mustBeNonempty}
             end
@@ -638,9 +629,13 @@ classdef NetCDFGroup < handle
             bool = logical(bool);
         end
 
-        % key-value Map to retrieve a NetCDFGroup object by name
-        % - Topic: Working with groups
         function grp = groupWithName(self,name)
+            % groupWithName Retrieve a child group by name.
+            %
+            % - Topic: Working with groups
+            % - Declaration: grpOut = groupWithName(grp,name)
+            % - Parameter name: (char|string) Child group name.
+            % - Returns grpOut: (NetCDFGroup) Matching child group.
             if ~isKey(self.groupNameMap,name)
                 error('A group with the name %s does not exist!',name);
             end
@@ -648,6 +643,12 @@ classdef NetCDFGroup < handle
         end
 
         function grp = addGroup(self, name)
+            % addGroup Create a new child group.
+            %
+            % - Topic: Working with groups
+            % - Declaration: grpOut = addGroup(grp,name)
+            % - Parameter name: (char|string) New child group name.
+            % - Returns grpOut: (NetCDFGroup) Created child group.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty} 
                 name string {mustBeText}
@@ -660,6 +661,14 @@ classdef NetCDFGroup < handle
         end
 
         function addDuplicateGroup(self,sourceGroup,options)
+            % addDuplicateGroup Duplicate an existing group into this group.
+            %
+            % - Topic: Working with groups
+            % - Declaration: addDuplicateGroup(grp,sourceGroup,options)
+            % - Parameter sourceGroup: (NetCDFGroup) Group to duplicate.
+            % - Parameter options.copyVariables: (logical) Copy variables. Default true.
+            % - Parameter options.copyDimensions: (logical) Copy dimensions. Default true.
+            % - Parameter options.copyAttributes: (logical) Copy attributes. Default true.
             arguments
                 self NetCDFGroup
                 sourceGroup NetCDFGroup
@@ -760,28 +769,33 @@ classdef NetCDFGroup < handle
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         function addAttribute(self,name,data)
-            % add a global attribute to the file
+            % addAttribute Add or replace a global attribute on this group.
             %
             % - Topic: Working with global attributes
-            % - Declaration: addAttribute(name,data)
-            % - Parameter name: string of the attribute name
-            % - Parameter data: value
-            % if (strcmp(self.format,'FORMAT_CLASSIC') || strcmp(self.format,'FORMAT_64BIT')) && isa(data,'string') && numel(data) > 1
-            %     if iscolumn(data)
-            %         data = data.';
-            %     end
-            %     data = char(data+'~');
-            % end
-
+            % - Declaration: addAttribute(grp,name,data)
+            % - Parameter name: (char|string) Attribute name.
+            % - Parameter data: (:) Attribute value.
             netcdf.putAtt(self.id,netcdf.getConstant('NC_GLOBAL'), name, data);
             self.attributes(name) = data;
         end
 
         function bool = hasAttributeWithName(self,name)
+            % hasAttributeWithName Determine whether a global attribute exists on this group.
+            %
+            % - Topic: Working with global attributes
+            % - Declaration: tf = hasAttributeWithName(grp,name)
+            % - Parameter name: (char|string) Attribute name.
+            % - Returns tf: (logical) True if the attribute exists.
             bool = isKey(self.attributes,name);
         end
 
         function dump(self,options)
+            % dump Display group contents to the command window.
+            %
+            % - Topic: Accessing group properties
+            % - Declaration: dump(grp,options)
+            % - Parameter options.indent: (double) Number of spaces to indent nested output. Default 0.
+            % - Parameter options.maxArrayElements: (double) Max elements to display for array-valued attributes. Default 10.
             arguments
                 self NetCDFGroup
                 options.indentLevel = 0
@@ -891,7 +905,12 @@ classdef NetCDFGroup < handle
     methods (Access=protected)
 
         function initializeGroupFromFile(self,parentGroup,id)
-            % initialize an existing group from file
+            % initializeGroupFromFile Populate this group from an open NetCDF file/group ID.
+            %
+            % - Topic: Initializing
+            % - Declaration: initializeGroupFromFile(grp,parentGroup,id)
+            % - Parameter parentGroup: (NetCDFGroup) Parent group (or []).
+            % - Parameter id: (double) NetCDF group ID.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 parentGroup
@@ -945,7 +964,12 @@ classdef NetCDFGroup < handle
         end
 
         function initGroup(self,parentGroup, name)
-            % initialize a new group
+            % initGroup Initialize a new group in an open NetCDF file.
+            %
+            % - Topic: Initializing
+            % - Declaration: initGroup(grp,parentGroup,name)
+            % - Parameter parentGroup: (NetCDFGroup) Parent group (or []).
+            % - Parameter name: (char|string) Group name.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty} 
                 parentGroup (1,1) NetCDFGroup {mustBeNonempty} 
@@ -967,6 +991,11 @@ classdef NetCDFGroup < handle
         end
 
         function addDimensionPrimitive(self,dimension)
+            % addDimensionPrimitive Register a NetCDFDimension with this group.
+            %
+            % - Topic: Working with dimensions
+            % - Declaration: addDimensionPrimitive(grp,dimension)
+            % - Parameter dimension: (NetCDFDimension) Dimension to register.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 dimension (:,1) NetCDFDimension {mustBeNonempty}
@@ -980,6 +1009,11 @@ classdef NetCDFGroup < handle
         end
 
         function addRealVariablePrimitive(self,variable)
+            % addRealVariablePrimitive Register a NetCDFRealVariable with this group.
+            %
+            % - Topic: Working with variables
+            % - Declaration: addRealVariablePrimitive(grp,variable)
+            % - Parameter variable: (NetCDFRealVariable) Variable to register.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 variable (:,1) NetCDFRealVariable {mustBeNonempty}
@@ -993,6 +1027,11 @@ classdef NetCDFGroup < handle
         end
 
         function removeVariablePrimitive(self,variable)
+            % removeVariablePrimitive Remove a variable from this group bookkeeping.
+            %
+            % - Topic: Working with variables
+            % - Declaration: removeVariablePrimitive(grp,variable)
+            % - Parameter variable: (NetCDFVariable) Variable to remove.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 variable (:,1) NetCDFRealVariable
@@ -1005,6 +1044,11 @@ classdef NetCDFGroup < handle
         end
 
         function addComplexVariablePrimitive(self,variable)
+            % addComplexVariablePrimitive Register a NetCDFComplexVariable with this group.
+            %
+            % - Topic: Working with variables
+            % - Declaration: addComplexVariablePrimitive(grp,variable)
+            % - Parameter variable: (NetCDFComplexVariable) Variable to register.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 variable (:,1) NetCDFComplexVariable
@@ -1017,6 +1061,11 @@ classdef NetCDFGroup < handle
         end
 
         function addGroupPrimitive(self,group)
+            % addGroupPrimitive Register a child group with this group.
+            %
+            % - Topic: Working with groups
+            % - Declaration: addGroupPrimitive(grp,group)
+            % - Parameter group: (NetCDFGroup) Child group to register.
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
                 group (1,1) NetCDFGroup {mustBeNonempty}

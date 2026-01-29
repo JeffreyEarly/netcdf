@@ -9,8 +9,20 @@ mathjax: true
 
 #  close
 
-- Topic: Accessing file properties
+the underlying NetCDF file handle.
 
 
 ---
 
+## Declaration
+```matlab
+ self = close()
+```
+## Returns
++ `self`  NetCDFFile instance
+
+## Discussion
+
+  After close, the instance's id is cleared.
+ 
+      

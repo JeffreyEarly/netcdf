@@ -26,6 +26,10 @@ websiteRootURL = "netcdf/";
 
 classFolderName = 'Class documentation';
 websiteFolder = "classes";
-classDoc = ClassDocumentation('NetCDFFile',websiteRootURL=websiteRootURL,buildFolder=buildFolder,websiteFolder=websiteFolder,parent=classFolderName,nav_order=1);
-classDoc.writeToFile();
+classes = {'NetCDFFile','NetCDFGroup','NetCDFDimension','NetCDFVariable','NetCDFRealVariable','NetCDFComplexVariable'};
+classDocumentation = ClassDocumentation.empty(length(classes),0);
+for iName=1:length(classes)
+classDocumentation(iName) = ClassDocumentation(classes{iName},nav_order=iName+1,websiteRootURL=websiteRootURL,buildFolder=buildFolder,websiteFolder=websiteFolder,parent=classFolderName);
+end
+arrayfun(@(a) a.writeToFile(),classDocumentation)
 end

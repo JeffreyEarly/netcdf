@@ -9,8 +9,20 @@ mathjax: true
 
 #  sync
 
-- Topic: Accessing file properties
+Synchronize in-memory changes to disk.
 
 
 ---
 
+## Declaration
+```matlab
+ self = sync()
+```
+## Returns
++ `self`  NetCDFFile instance
+
+## Discussion
+
+  Calls netcdf.sync on the underlying file handle.
+ 
+      

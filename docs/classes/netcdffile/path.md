@@ -9,8 +9,11 @@ mathjax: true
 
 #  path
 
-file path the NetCDF file
+File path to the NetCDF dataset.
 
 
 ---
 
+## Discussion
+
+  

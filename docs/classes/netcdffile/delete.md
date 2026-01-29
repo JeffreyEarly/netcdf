@@ -9,8 +9,15 @@ mathjax: true
 
 #  delete
 
-
+Destructor: close the file handle if still open.
 
 
 ---
 
+## Declaration
+```matlab
+ delete()
+```
+## Discussion
+
+    

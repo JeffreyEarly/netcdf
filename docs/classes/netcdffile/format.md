@@ -9,8 +9,13 @@ mathjax: true
 
 #  format
 
-format
+NetCDF format identifier.
 
 
 ---
 
+## Discussion
+
+  Default is FORMAT_NETCDF4 for newly created files; for opened files
+  this is overwritten by netcdf.inqFormat.
+  

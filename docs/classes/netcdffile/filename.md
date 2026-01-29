@@ -9,7 +9,7 @@ mathjax: true
 
 #  filename
 
-
+File name (base name + extension) derived from path.
 
 
 ---

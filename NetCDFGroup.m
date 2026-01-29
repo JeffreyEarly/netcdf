@@ -576,33 +576,43 @@ classdef NetCDFGroup < handle
             end
         end
 
-        function bool = hasVariableWithName(self,variableName)
-            % return a variable with a given name from this group
+        function bool = hasVariableWithName(self,variablePath)
+            % whether a variable name or path exists in this group
             %
-            % Pass a variable name and the variable object will be
-            % returned.
+            % Pass a variable name or variable path.
             %
             % ```matlab
-            % var = ncfile.variableWithName('x');
+            % bool = ncfile.hasVariableWithName('t');
             % ```
             %
-            % var will be either NetCDFRealVariable or
-            % NetCDFComplexVariable.
+            % will return true if there exists one or more variables with
+            % that name.
+            %
+            % ```matlab
+            % bool = ncfile.hasVariableWithName('wave-vortex/t');
+            % ```
+            % 
+            % will return true only if exactly that variable path exists.
             %
             % - Topic: Working with variables
-            % - Declaration: varargout = variableWithName(variableNames)
-            % - Parameter variableNames: variable name
-            % - Returns varargout: (repeating) variable objects
+            % - Declaration: bool = hasVariableWithName(variablePath)
+            % - Parameter variablePath: array of variable name or variable paths
+            % - Returns bool: logical array of the same size as variablePath
             arguments
                 self NetCDFGroup {mustBeNonempty}
             end
             arguments (Repeating)
-                variableName char
+                variablePath char
             end
-            bool = zeros(length(variableName),1);
+            bool = zeros(length(variablePath),1);
 
-            for iArg=1:length(variableName)
-                bool(iArg) = any(~isempty(self.variablePathsWithName(variableName{iArg})));
+            for iArg=1:length(variablePath)
+                variablePathComponents = split(variablePath{iArg},"/");
+                if length(variablePathComponents) > 1
+                    bool(iArg) = any(self.variablePathsWithName(variablePathComponents{end}) == variablePath{iArg});
+                else
+                    bool(iArg) = any(~isempty(self.variablePathsWithName(variablePathComponents{end})));
+                end
             end
             bool = logical(bool);
         end

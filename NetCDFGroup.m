@@ -207,7 +207,7 @@ classdef NetCDFGroup < handle
             % - Returns dims: (NetCDFDimension) Matching dimensions (in the same order as dimids).
             arguments
                 self (1,1) NetCDFGroup {mustBeNonempty}
-                dimids (1,:) double {mustBeNonempty}
+                dimids (1,:) double
             end
             dims = self.dimensionIDMap(dimids);
         end

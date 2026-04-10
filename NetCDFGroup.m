@@ -410,15 +410,10 @@ classdef NetCDFGroup < handle
                 error('A variable with that name already exists.');
             end
 
-            % write the function_handle to a .mat file, and read in as
-            % binary
-            tmpfile = strcat(tempname,'.mat');
-            tmpstruct.(name) = value;
-            save(tmpfile,"-struct","tmpstruct");
-            fileID = fopen(tmpfile, 'rb');
-            binaryData = fread(fileID, '*uint8');
-            fclose(fileID);
-            delete(tmpfile);
+            [binaryData, warningMessage, warningIdentifier] = NetCDFGroup.serializeFunctionHandle(name, value);
+            if strlength(string(warningMessage)) > 0
+                warning('NetCDFGroup:PotentiallyUnserializableFunctionHandle', '%s', NetCDFGroup.functionHandleWarningMessage(name, value, warningIdentifier, warningMessage));
+            end
 
             dim = NetCDFDimension(self,name=name,nPoints=length(binaryData));
             self.addDimensionPrimitive(dim)
@@ -898,6 +893,126 @@ classdef NetCDFGroup < handle
                 fprintf('%s}\n',indent0);
             else
                 fprintf('%s} // group %s\n',indent0,self.name);
+            end
+        end
+    end
+
+    methods (Static, Hidden)
+        function [binaryData, warningMessage, warningIdentifier] = serializeFunctionHandle(variableName, value)
+            arguments
+                variableName {mustBeText}
+                value function_handle
+            end
+            warningState = warning;
+            tmpfile = strcat(tempname, '.mat');
+            cleanupWarningState = onCleanup(@() warning(warningState));
+            cleanupTmpFile = onCleanup(@() NetCDFGroup.deleteIfPresent(tmpfile));
+
+            warning('off', 'all');
+            lastwarn('');
+            try
+                tmpstruct.(char(variableName)) = value;
+                save(tmpfile, "-struct", "tmpstruct");
+                roundTrip = load(tmpfile, char(variableName));
+                if ~isfield(roundTrip, char(variableName)) || ~isa(roundTrip.(char(variableName)), 'function_handle')
+                    error('NetCDFGroup:InvalidFunctionHandleRoundTrip', 'Loading the MAT-file did not reconstruct a function_handle.');
+                end
+                [warningMessage, warningIdentifier] = lastwarn;
+
+                fileID = fopen(tmpfile, 'rb');
+                if fileID == -1
+                    error('NetCDFGroup:UnableToReadSerializedFunctionHandle', 'Unable to read the temporary MAT-file for the serialized function handle.');
+                end
+                cleanupFileID = onCleanup(@() fclose(fileID));
+                binaryData = fread(fileID, '*uint8');
+            catch ME
+                error('NetCDFGroup:UnserializableFunctionHandle', '%s', NetCDFGroup.functionHandleErrorMessage(value, ME.message));
+            end
+        end
+
+        function message = functionHandleErrorMessage(value, originalError)
+            arguments
+                value function_handle
+                originalError {mustBeText}
+            end
+            message = strcat("MATLAB could not serialize the function handle ", NetCDFGroup.functionHandleSummary(value), " to a MAT-file. ", NetCDFGroup.functionHandleGuidance(value), " Original error: ", string(originalError));
+        end
+
+        function message = functionHandleWarningMessage(name, value, warningIdentifier, warningMessage)
+            arguments
+                name {mustBeText}
+                value function_handle
+                warningIdentifier {mustBeText}
+                warningMessage {mustBeText}
+            end
+            message = strcat("MATLAB warned while serializing function handle ", string(name), " = ", NetCDFGroup.functionHandleSummary(value), ". ", NetCDFGroup.warningSummaryText(warningIdentifier, warningMessage), " ", NetCDFGroup.functionHandleGuidance(value));
+        end
+    end
+
+    methods (Static, Access = private)
+        function summary = functionHandleSummary(value)
+            arguments
+                value function_handle
+            end
+            functionText = string(func2str(value));
+            workspaceNames = NetCDFGroup.capturedWorkspaceVariableNames(value);
+            if isempty(workspaceNames)
+                summary = strcat("`", functionText, "` with no captured workspace variables detected.");
+            else
+                summary = strcat("`", functionText, "` capturing workspace variables: ", strjoin(workspaceNames, ", "), ".");
+            end
+        end
+
+        function guidance = functionHandleGuidance(value)
+            arguments
+                value function_handle
+            end
+            info = functions(value);
+            guidance = "Prefer named functions or anonymous functions that capture only plain numeric, logical, string, char, struct, or cell data. Keep any referenced functions, package folders, and class definitions available on the MATLAB path when the file is read back. Avoid capturing runtime resources such as onCleanup objects, file IDs, timers, graphics handles, Java/.NET objects, or transient handle objects if the handle must survive a restart.";
+            if isfield(info, 'function') && strlength(string(info.function)) > 0
+                guidance = strcat(guidance, " Reported function name: ", string(info.function), ".");
+            end
+        end
+
+        function names = capturedWorkspaceVariableNames(value)
+            arguments
+                value function_handle
+            end
+            info = functions(value);
+            names = strings(0, 1);
+            if ~isfield(info, 'workspace') || isempty(info.workspace)
+                return
+            end
+            workspace = info.workspace;
+            if iscell(workspace)
+                for iWorkspace = 1:numel(workspace)
+                    if isstruct(workspace{iWorkspace})
+                        names = union(names, string(fieldnames(workspace{iWorkspace})), 'stable');
+                    end
+                end
+            elseif isstruct(workspace)
+                names = union(names, string(fieldnames(workspace)), 'stable');
+            end
+        end
+
+        function text = warningSummaryText(warningIdentifier, warningMessage)
+            arguments
+                warningIdentifier {mustBeText}
+                warningMessage {mustBeText}
+            end
+            if strlength(string(warningIdentifier)) > 0
+                text = strcat("Warning ", string(warningIdentifier), ": ", string(warningMessage), ".");
+            else
+                text = strcat("Warning: ", string(warningMessage), ".");
+            end
+        end
+
+        function deleteIfPresent(path)
+            arguments
+                path {mustBeText}
+            end
+            if isfile(path)
+                delete(path);
             end
         end
     end

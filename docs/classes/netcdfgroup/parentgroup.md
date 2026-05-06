@@ -14,3 +14,6 @@ parent group (may be nil)
 
 ---
 
+## Type
++ Class: `NetCDFGroup`
+
